@@ -59,7 +59,7 @@ $pool = Get-AzureBatchPool -Id $poolName -BatchContext $batchContext
 $TargetDedicatedComputeNodes = $pool.TargetDedicatedComputeNodes
 $TargetLowPriorityComputeNodes = $pool.TargetLowPriorityComputeNodes       
 
-# resize to zero nodes
+# resize to 0
 Write-Output "Resizing pool to zero nodes"
 Start-AzureBatchPoolResize -Id "defaultpool" -TargetDedicatedComputeNodes 0 -TargetLowPriorityComputeNodes 0 -BatchContext $batchContext
 
@@ -74,12 +74,24 @@ While ($pool.AllocationState -ne "Steady")
 
 # resize back to previous state
 Write-Output "Resizing pool back to old values: TargetDedicatedComputeNodes: $TargetDedicatedComputeNodes, TargetLowPriorityComputeNodes: $TargetLowPriorityComputeNodes"
-Start-AzureBatchPoolResize -Id "defaultpool" -TargetDedicatedComputeNodes $TargetDedicatedComputeNodes -TargetLowPriorityComputeNodes $TargetLowPriorityComputeNodes -BatchContext $batchContext
+# this can still fail, so catch exception and try 3 times
+for ($num = 1 ; $num -le 3 ; $num++) {
+    try {
+        Start-AzureBatchPoolResize -Id "defaultpool" -TargetDedicatedComputeNodes $TargetDedicatedComputeNodes -TargetLowPriorityComputeNodes $TargetLowPriorityComputeNodes -BatchContext $batchContext
+        break
+    }
+    catch [BatchException] {
+        Start-Sleep 10
+    }
+    catch {
+        Write-Output "Unknown error occurred: " + $_.Exception
+        break
+    }
+}
 
 Do {
     Start-Sleep 10
     $pool = Get-AzureBatchPool -Id $poolName -BatchContext $batchContext
-    Write-Output $pool
 }
 While ($pool.AllocationState -ne "Steady")
 
@@ -87,10 +99,3 @@ Write-Output "----------------------------"
 Write-Output "----------------------------"
 Write-Output "----------------------------"
 Write-Output "*** End Batch Pool Reset: "(Get-Date)
-
-
-
-
-
-
-
